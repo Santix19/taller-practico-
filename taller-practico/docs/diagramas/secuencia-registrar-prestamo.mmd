@@ -1,0 +1,32 @@
+sequenceDiagram
+    autonumber
+    actor U as Usuario
+    participant C as PrestamoController
+    participant S as PrestamoService
+    participant ER as EstudianteRepository
+    participant LR as LibroRepository
+    participant L as Libro
+    participant PR as PrestamoRepository
+
+    U->>C: POST /api/prestamos {estudianteId, libroId}
+    C->>S: registrarPrestamo(request)
+    activate S
+    S->>ER: findById(estudianteId)
+    ER-->>S: Optional<Estudiante>
+    S->>LR: buscarParaPrestar(libroId)
+    LR-->>S: Optional<Libro>
+    Note over S,LR: Si no existe estudiante o libro:<br/>RecursoNoEncontradoException → 404 Not Found
+    S->>L: isDisponible()
+    L-->>S: boolean
+    alt Libro disponible (camino exitoso)
+        S->>L: marcarPrestado()
+        S->>PR: save(new Prestamo(estudiante, libro, hoy))
+        PR-->>S: Prestamo
+        S-->>C: PrestamoResponse
+        C-->>U: 201 Created + PrestamoResponse
+    else Libro no disponible
+        S-->>C: LibroNoDisponibleException
+        Note over S,PR: Transacción sin cambios: no se crea préstamo
+        C-->>U: 409 Conflict (GlobalExceptionHandler)
+    end
+    deactivate S
